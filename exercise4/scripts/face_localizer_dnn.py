@@ -166,21 +166,18 @@ class face_localizer:
                 # Find the location of the detected face
                 pose = self.get_pose((x1,x2,y1,y2), face_distance, depth_time)
 
-                print('Pose of face', pose)
                 new_face = True
                 for marker in self.marker_array.markers:
-                    if abs(marker.pose.position.x - pose.position.x) < 0.4 and abs(marker.pose.position.y - pose.position.y) < 0.4:
+                    if abs(marker.pose.position.x - pose.position.x) < 0.5 and abs(marker.pose.position.y - pose.position.y) < 0.5:
                         new_face = False
-                        if face_distance > 1:
-                            marker.pose = pose
-                        print('Face already detected')
+                        # if face_distance > 1:
+                        marker.pose = pose
+                        print('Face already detected. Updating pose.')
                         break
-                
-                if pose is not None and new_face:
+                                
+                if pose is not None and new_face:                    
                     print('Distance to face', face_distance)
                     print(f'Pose of face [{pose.position.x}, {pose.position.y}]')
-                
-                if pose is not None and new_face:                    
                     # Create a marker used for visualization
                     self.marker_num += 1
                     marker = Marker()
