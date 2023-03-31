@@ -5,14 +5,30 @@ import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 
+def calibrate():
+    # Create a SimpleActionClient for the move_base action
+    client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+    client.wait_for_server()
+    # Create a goal message
+    goal = MoveBaseGoal()
+    goal.target_pose.header.frame_id = "map"
+    goal.target_pose.pose.position.x = -0.5
+    goal.target_pose.pose.position.y = 0.5
+    goal.target_pose.pose.orientation.w = 1.0
+    # Send the goal and wait for the result
+    client.send_goal(goal)
+    client.wait_for_result()
+    rospy.loginfo("Robot calibrated.")
+
+
 def move_to_goal():
     # Create a SimpleActionClient for the move_base action
     client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
     client.wait_for_server()
 
     # Goal coordinates
-    x = [0.10408163070678711, 3.16398286819458, 1.20012366771698, 1.051872730255127, -0.7761532068252563]
-    y = [-1.7393693923950195, -1.1116236448287964, 0.3751080334186554, 1.928648591041565, 1.190643310546875]
+    x = [0.5, 3.16, 1.20, 1.05, -0.77]
+    y = [-1.3, -1.11, 0.37, 1.92, 1.19]
 
     finished_goals = 0
     for i in range(len(x)):
@@ -57,6 +73,11 @@ def move_to_goal():
 
 if __name__ == '__main__':
     rospy.init_node('hw3_goals')
+
+    # Move a robot a little bit to calibrate its position
+    calibrate()
+
+    # Start moving to goals
     move_to_goal()
 
 

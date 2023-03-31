@@ -49,7 +49,6 @@ class face_localizer:
         self.tf_buf = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buf)
 
-
     def get_pose(self,coords,dist,stamp):
         # Calculate the position of the detected face
 
@@ -95,7 +94,6 @@ class face_localizer:
             pose = None
 
         return pose
-    
 
     def find_faces(self):
         print('I got a new image!')
@@ -130,7 +128,7 @@ class face_localizer:
         h = self.dims[0]
         w = self.dims[1]
 
-        # Tranform image to gayscale
+        # Tranform image to grayscale
         #gray = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY)
 
         # Do histogram equlization
@@ -149,16 +147,8 @@ class face_localizer:
                 box = box.astype('int')
                 x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
 
-                # Extract region containing face
-                face_region = rgb_image[y1:y2, x1:x2]
-
-                # Visualize the extracted face
-                #cv2.imshow("ImWindow", face_region)
-                #cv2.waitKey(1)
-
                 # Find the distance to the detected face
                 face_distance = float(np.nanmean(depth_image[y1:y2,x1:x2]))
-
 
                 # Get the time that the depth image was recieved
                 depth_time = depth_image_message.header.stamp
@@ -166,18 +156,28 @@ class face_localizer:
                 # Find the location of the detected face
                 pose = self.get_pose((x1,x2,y1,y2), face_distance, depth_time)
 
+                # Check if the face is already detected
                 new_face = True
                 for marker in self.marker_array.markers:
                     if abs(marker.pose.position.x - pose.position.x) < 0.5 and abs(marker.pose.position.y - pose.position.y) < 0.5:
                         new_face = False
+                        # Update the pose of already detected face
                         # if face_distance > 1:
                         marker.pose = pose
+                        self.markers_pub.publish(self.marker_array)
                         print('Face already detected. Updating pose.')
                         break
                                 
                 if pose is not None and new_face:                    
                     print('Distance to face', face_distance)
                     print(f'Pose of face [{pose.position.x}, {pose.position.y}]')
+                    
+                    # Extract region containing face
+                    # face_region = rgb_image[y1:y2, x1:x2] 
+                    # Visualize the extracted face
+                    # cv2.imshow("ImWindow", face_region)
+                    # cv2.waitKey(1)
+
                     # Create a marker used for visualization
                     self.marker_num += 1
                     marker = Marker()
@@ -215,7 +215,10 @@ class face_localizer:
         #plt.imshow(depth_image)
         #plt.show()
 
+
 def main():
+        # sleep for n seconds so the robot calibrates
+        rospy.sleep(8)
 
         face_finder = face_localizer()
 
