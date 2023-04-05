@@ -96,7 +96,7 @@ class face_localizer:
         return pose
 
     def find_faces(self):
-        print('I got a new image!')
+        # print('I got a new image!')
 
         # Get the next rgb and depth images that are posted from the camera
         try:
@@ -163,9 +163,9 @@ class face_localizer:
                         new_face = False
                         # Update the pose of already detected face
                         # if face_distance > 1:
-                        marker.pose = pose
-                        self.markers_pub.publish(self.marker_array)
-                        print('Face already detected. Updating pose.')
+                        # marker.pose = pose
+                        # self.markers_pub.publish(self.marker_array)
+                        print('Face already detected.')
                         break
                                 
                 if pose is not None and new_face:                    
@@ -218,7 +218,7 @@ class face_localizer:
 
 def main():
         # sleep for n seconds so the robot calibrates
-        rospy.sleep(8)
+        # rospy.sleep(8)
 
         face_finder = face_localizer()
 

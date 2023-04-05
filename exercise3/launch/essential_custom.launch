@@ -55,4 +55,7 @@
   <!-- Used for visualising the turtlebot while building a map or navigating with the ros navistack. -->
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find turtlebot_rviz_launchers)/rviz/navigation.rviz"/>
 
+  <!-- Node for playing sounds -->
+  <node name="soundplay_node" pkg="sound_play" type="soundplay_node.py"/>
+
 </launch>
