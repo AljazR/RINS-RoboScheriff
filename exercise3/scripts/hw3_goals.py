@@ -46,9 +46,7 @@ def approach_face(marker_array: MarkerArray):
     new_y = [face_position.y, face_position.y, face_position.y + 0.5, face_position.y - 0.5]
     new_w = [0, 1, 0.7, 0.7]
     new_z = [1, 0, -0.7, 0.7]
-    # angles = [0, math.pi / 2, math.pi, 3 * math.pi / 2]
     min_dist = 1000
-    # angle = 0
     for i in range(4):
         dist = math.sqrt((new_x[i] - robot_position.x)**2 + (new_y[i] - robot_position.y)**2)
         if dist < min_dist:
@@ -57,12 +55,6 @@ def approach_face(marker_array: MarkerArray):
             y = new_y[i]
             w = new_w[i]
             z = new_z[i]
-            # angle = angles[i]
-
-    # calclate rotation
-    # q = q = tf.transformations.quaternion_about_axis(angle, axis)
-    # axis = [1.0, 0.0, 0.0]
-    # q = [math.cos(angle/2), math.sin(angle/2)*axis[0], math.sin(angle/2)*axis[1], math.sin(angle/2)*axis[2]]
 
     rospy.loginfo(f"Approaching point [{x:.3f}, {y:.3f}].")
 
@@ -83,7 +75,7 @@ def approach_face(marker_array: MarkerArray):
         rospy.loginfo(f"Approached face and saying hi.")
         sound_client = SoundClient()
         rospy.sleep(1)
-        sound_client.say("Hello! You are a newly discovered face!")
+        sound_client.say("Hello! I detected your face!")
         rospy.sleep(4)
     else:
         rospy.loginfo(f"Failed to approach face.")
@@ -138,9 +130,9 @@ def move_to_goal():
             rospy.sleep(1)
         
         # we only increment the goal index if we didn't approach a face, so that we return to the last goal
-        if not new_face:
-        #     client.cancel_goal()
-        # else: 
+        if new_face:
+            client.cancel_goal()
+        else: 
             i += 1
         
         # wait for the face to be approached
@@ -152,19 +144,5 @@ def move_to_goal():
 if __name__ == '__main__':
     rospy.init_node('hw3_goals')
 
-    # rospy.sleep(5)
-
-    # Move a robot a little bit to calibrate its position
-    # calibrate()
-
     # Start moving to goals
     move_to_goal()
-
-
-# roslaunch exercise3 rins_world.launch
-# roslaunch exercise3 amcl_simulation.launch
-# roslaunch turtlebot_rviz_launchers view_navigation.launch
-# rosrun exercise3 hw3_goals.py
-# or
-# roslaunch exercise3 essential.launch
-# rosrun exercise3 hw3_goals.py

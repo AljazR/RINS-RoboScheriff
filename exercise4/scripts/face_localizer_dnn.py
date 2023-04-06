@@ -49,6 +49,9 @@ class face_localizer:
         self.tf_buf = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buf)
 
+        # Publisher for image of the detected face
+        self.face_pub = rospy.Publisher('face_image', Image, queue_size=1000)
+
     def get_pose(self,coords,dist,stamp):
         # Calculate the position of the detected face
 
@@ -150,6 +153,9 @@ class face_localizer:
                 # Find the distance to the detected face
                 face_distance = float(np.nanmean(depth_image[y1:y2,x1:x2]))
 
+                # if face_distance > 1.2:
+                #     continue
+
                 # Get the time that the depth image was recieved
                 depth_time = depth_image_message.header.stamp
 
@@ -173,7 +179,11 @@ class face_localizer:
                     print(f'Pose of face [{pose.position.x}, {pose.position.y}]')
                     
                     # Extract region containing face
-                    # face_region = rgb_image[y1:y2, x1:x2] 
+                    face_region = rgb_image[y1:y2, x1:x2]
+
+                    # Publish the image of the face
+                    self.face_pub.publish(self.bridge.cv2_to_imgmsg(face_region, "bgr8"))
+
                     # Visualize the extracted face
                     # cv2.imshow("ImWindow", face_region)
                     # cv2.waitKey(1)
