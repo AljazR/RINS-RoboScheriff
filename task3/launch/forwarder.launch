@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+
+    <node pkg="task3" type="cloud_forwarder" name="voxelgrid" output="screen">
+
+        <remap from="input" to="/camera/depth/points"/>
+        <remap from="output" to="/task3/forwarder"/>
+
+    </node>
+
+</launch>

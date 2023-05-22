@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+
+    <node pkg="task3" type="planes" name="planes">
+
+        <remap from="input" to="/camera/depth/points"/>
+        <remap from="planes" to="/task3/planes"/>
+
+    </node>
+
+</launch>
