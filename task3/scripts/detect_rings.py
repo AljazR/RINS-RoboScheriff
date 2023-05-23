@@ -11,7 +11,7 @@ from geometry_msgs.msg import PointStamped, Vector3, Pose
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
-from sound_play.libsoundplay import SoundClient
+# from sound_play.libsoundplay import SoundClient
 
 global ring_poses
 global detection_rate
@@ -36,17 +36,17 @@ class The_Ring:
         # Publiser for the visualization markers
         self.markers_pub = rospy.Publisher('ring_markers', MarkerArray, queue_size=1000)
 
+        # Publiser depth image with marked rings
+        self.depth_rings_pub = rospy.Publisher('depth_rings', Image, queue_size=1)
+
         # Object we use for transforming between coordinate frames
         self.tf_buf = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buf)
 
         # Sound client
-        self.soundClient = SoundClient()
-
+        # self.soundClient = SoundClient()
 
     def get_pose(self, e, dist, color):
-        # if len(self.marker_array.markers) > 4:
-        #     return
         global ring_poses
         # print(f"dist: {dist} color: {color}")
 
@@ -81,7 +81,13 @@ class The_Ring:
         new_ring = True
         new_marker = False
         for ring_pose in ring_poses:
-            if abs(ring_pose[0] - pose.position.x) < 0.5 and abs(ring_pose[1] - pose.position.y) < 0.5:
+            # if it's the same color, then the max distance can be bigger
+            if color == ring_poses[ring_pose][2]:
+                max_dist = 1.0
+            else:
+                max_dist = 0.5
+
+            if abs(ring_pose[0] - pose.position.x) < max_dist and abs(ring_pose[1] - pose.position.y) < max_dist:
                 new_ring = False
                 if ring_poses[ring_pose][1] < 7:
                     ring_poses[ring_pose][1] += 1
@@ -89,28 +95,33 @@ class The_Ring:
                     
                     if ring_poses[ring_pose][1] == 7:
                         new_marker = True
-                        print("New ring detected")
-                        # update the pose with the average of the last 7 poses
+                        # Update the pose with the average of the last 7 poses
                         pose.position.x = sum([p.position.x for p in ring_poses[ring_pose][0]]) / 7
                         pose.position.y = sum([p.position.y for p in ring_poses[ring_pose][0]]) / 7
                         pose.position.z = sum([p.position.z for p in ring_poses[ring_pose][0]]) / 7
                 break        
-
+        
+        # If new ring is detected, add it to the dictionary
         if new_ring:
             ring_poses[(pose.position.x, pose.position.y, pose.position.z)] = [[pose], 1, color]
 
-
         # Check if the marker is already in the proximity of another marker
         first_in_proximity = True
+        color_exists = False
         for marker in self.marker_array.markers:
+            # if a marker with the same color already exists, throw away the new one
+            if marker.color.r == 1 and marker.color.g == 0 and marker.color.b == 0 and color == "red" or \
+                marker.color.r == 0 and marker.color.g == 1 and marker.color.b == 0 and color == "green" or \
+                marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 1 and color == "blue" or \
+                marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 0 and color == "black":
+                color_exists = True
+                break
+
             if abs(marker.pose.position.x - pose.position.x) < 0.5 and abs(marker.pose.position.y - pose.position.y) < 0.5:
                 first_in_proximity = False
-                break
                 
-        print(f"{color}, {first_in_proximity}, {len(self.marker_array.markers)},\n x:{round(pose.position.x, 3)} y:{round(pose.position.y, 3)} z:{round(pose.position.z, 3)}") 
 
-
-        if new_marker and first_in_proximity:
+        if new_marker and first_in_proximity and not color_exists:
             # Create a marker
             self.marker_num += 1
             marker = Marker()
@@ -136,9 +147,11 @@ class The_Ring:
             self.marker_array.markers.append(marker)
             self.markers_pub.publish(self.marker_array)
 
-            # say the color
-            self.soundClient.say(f"{color} ring detected.")
-
+            print(f"{color[0].upper() + color[1:]} ring detected.")
+        elif new_marker and color_exists:
+            print(f"{color[0].upper() + color[1:]} ring already detected.")
+        elif new_marker and not first_in_proximity:
+            print(f"{color[0].upper() + color[1:]} ring too close to another ring.")
 
     def depth_image_callback(self,data):
         global detection_rate
@@ -196,16 +209,14 @@ class The_Ring:
 
         # Extract the depth from the depth image
         for c in candidates:
-            # make a copy of the depth_rgb and cv_image
             depth_rgb_copy = depth_rgb.copy()
             cv_image_copy = cv_image.copy()
 
-
-            # the centers of the ellipses
+            # The centers of the ellipses
             e1 = c[0]
             e2 = c[1]
 
-            # drawing the ellipses on the image
+            # Drawing the ellipses on the image
             cv2.ellipse(depth_rgb_copy, e2, (255, 0, 0), -1)
             cv2.ellipse(depth_rgb_copy, e1, (0, 255, 0), -1)
 
@@ -213,28 +224,28 @@ class The_Ring:
             cv2.ellipse(cv_image_copy, e1, (0, 255, 0), -1)
 
             # GET THE DEPTH OF THE RIM OF THE ELLIPSES
-            # get coordinates of the blue pixels in depth_img
+            # Get coordinates of the blue pixels in depth_img
             blue_pixels = np.where(depth_rgb_copy[:,:,0] == 255)
-            # get the depth of the blue pixels
+            # Get the depth of the blue pixels
             blue_depth = depth_image[blue_pixels[0], blue_pixels[1]]
-            # remove the 0 values
+            # Remove the 0 and 5 values
             blue_depth = blue_depth[blue_depth != 0]
             blue_depth = blue_depth[blue_depth != 5]
-            # find frequency of each values
+            # Find frequency of each values
             values, counts = np.unique(blue_depth, return_counts=True)
-            # find value with highest frequency
+            # Find value with highest frequency
             rim_depth = np.mean(values)
-            # print(F" RING-BLUE: {np.unique(blue_depth, return_counts=True)}")
+            # print(f" RING-BLUE: {np.unique(blue_depth, return_counts=True)}")
 
 
             # GET THE DEPTH OF THE CENTER OF THE ELLIPSES
             # get coordinates of the green pixels in depth_img
             green_pixels = np.where(depth_rgb_copy[:,:,1] == 255)
-            # get the depth of the green pixels
+            # Get the depth of the green pixels
             green_depth = depth_image[green_pixels[0], green_pixels[1]]
-            # find frequency of each value
+            # Find frequency of each value
             values, counts = np.unique(green_depth, return_counts=True)
-            # find out the rate of 0 and 5 -> if it is a ring, then the center has mostly 0 and 5 values
+            # Find out the rate of 0 and 5 -> if it is a ring, then the center has mostly 0 and 5 values
             count_0_5 = counts[0] + counts[-1]
             rate_0_5 = count_0_5/len(green_depth)
             # print(f" CENTER-GREEN: {np.unique(green_depth, return_counts=True)} rate: {rate_0_5}")
@@ -244,9 +255,9 @@ class The_Ring:
                 # GET THE COLOR OF THE RING
                 color_pixels = cv_image[blue_pixels[0], blue_pixels[1]]
 
-                # make mean over all pixels
+                # Make mean over all pixels
                 rim_color = np.mean(color_pixels, axis=0)
-                # get index of the max value
+                # Get index of the max value
                 max_index = np.argmax(rim_color)
 
                 if np.std(rim_color) < 1:
@@ -261,15 +272,19 @@ class The_Ring:
                 # print(f"{color} {rim_color}")
                 self.get_pose(e1, rim_depth, color)
 
+                # publish depth_img_copy
+                self.depth_rings_pub.publish(self.bridge.cv2_to_imgmsg(depth_rgb_copy, "rgb8"))
 
-        if len(candidates) > 0:
-            cv2.imshow("Ring image window", cv_image_copy)
-            cv2.waitKey(1)
+
+        # if len(candidates) > 0:
+        #     cv2.imshow("Ring image window", cv_image_copy)
+        #     cv2.waitKey(1)
 
 
 def main():
     global ring_poses
     ring_poses = {}
+    
     global detection_rate
     detection_rate = 10
 
