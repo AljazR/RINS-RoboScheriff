@@ -61,7 +61,6 @@ class face_localizer:
         self.model = torch.load('/home/aljaz/ROS/src/task3/scripts/training_posters/best_posters_model.pt')
         self.model.eval()
 
-
     def get_pose(self, coords, dist, stamp):
         # Calculate the position of the detected face
 
@@ -240,7 +239,7 @@ class face_localizer:
                 for marker in self.marker_array.markers:
                     if abs(marker.pose.position.x - pose.position.x) < 0.5 and abs(marker.pose.position.y - pose.position.y) < 0.5:
                         first_in_proximity = False
-                        print('Face already detected.')
+                        # print('Face already detected.')
                         break
            
                 if pose is not None and new_marker and first_in_proximity:                    
