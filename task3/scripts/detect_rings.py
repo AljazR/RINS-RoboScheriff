@@ -47,6 +47,9 @@ class The_Ring:
         # self.soundClient = SoundClient()
 
     def get_pose(self, e, dist, color):
+        # if dist > 3:
+        #     return
+
         global ring_poses
         # print(f"dist: {dist} color: {color}")
 
