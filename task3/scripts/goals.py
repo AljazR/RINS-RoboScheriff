@@ -8,22 +8,11 @@ from actionlib_msgs.msg import GoalStatus
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PointStamped, Vector3, Pose, PoseWithCovarianceStamped
 from sound_play.libsoundplay import SoundClient
-from std_msgs.msg import String
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from task3.srv import Dialogue, DialogueResponse
+from std_msgs.msg import String
 
 new_face = False
-ring_markers = None
-cylinder_markers = None
-
-def get_ring_markers(marker_array: MarkerArray):
-    global ring_markers
-    ring_markers = marker_array.markers
-    return
-
-def get_cylinder_markers(marker_array: MarkerArray):
-    global cylinder_markers
-    cylinder_markers = marker_array.markers
-    return
 
 def precise_parking(pose: Pose):
     # TODO: this is just a draft
@@ -92,7 +81,7 @@ def approach_face(marker_array: MarkerArray):
             z = new_z[i]
 
     if x is not None:
-        rospy.loginfo(f"Approaching point [{x:.3f}, {y:.3f}].")
+        print(f"Approaching point [{x:.3f}, {y:.3f}].")
 
         # Send the robot to the face
         client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
@@ -107,14 +96,28 @@ def approach_face(marker_array: MarkerArray):
 
         client.send_goal(goal)
         client.wait_for_result()
+
+        # When face is approached, open the dialogue box
         if client.get_state() == actionlib.GoalStatus.SUCCEEDED:
-            rospy.loginfo(f"Approached face and saying hi.")
-            sound_client = SoundClient()
-            rospy.sleep(1)
-            sound_client.say("Hello! I detected your face!")
-            rospy.sleep(4)
+            # Wait for the service to become available
+            rospy.wait_for_service('dialogue_box')
+            try:
+                # Create a callable for the service
+                dialogue_box = rospy.ServiceProxy('dialogue_box', Dialogue)          
+
+                # Create a request message
+                req = Dialogue()
+                req.start = True
+                
+                # Call the service
+                res = dialogue_box(req.start)
+                print(f"Service call succeeded with response: {res.success}")
+
+            except rospy.ServiceException as e:
+                rospy.logerr(f"Service call to dialog_box failed: {e}")
+
         else:
-            rospy.loginfo(f"Failed to approach face.")
+            print(f"Failed to approach face.")
 
     new_face = False
 
@@ -149,12 +152,12 @@ def move_to_goals():
         while not rospy.is_shutdown() and not new_face:
             status = client.get_state()
             if status == GoalStatus.ACTIVE and print_log:
-                rospy.loginfo(f"Goal {i} is being processed.")
+                print(f"Goal {i} is being processed.")
                 print_log = False
             elif status == GoalStatus.PENDING:
-                rospy.loginfo(f"Goal {i} is pending.")
+                print(f"Goal {i} is pending.")
             elif status == GoalStatus.SUCCEEDED:
-                rospy.loginfo(f"Goal {i} reached.")
+                print(f"Goal {i} reached.")
                 break
             elif status in [GoalStatus.PREEMPTED, GoalStatus.ABORTED, GoalStatus.LOST]:
                 rospy.logerr(f"Goal {i} failed with status code: {status}")
@@ -171,12 +174,39 @@ def move_to_goals():
         while new_face:
             rospy.sleep(1)
 
-    rospy.loginfo(f"Finished designated goals.")
+    print(f"Finished designated goals.")
 
-def get_dialogue_info():
-    # TODO: connect to the service dialogue_box
-    return [["blue", "red"], "red"]
+def get_colors():
+    data = rospy.wait_for_message('/colors', String, timeout=None)
+    colors = data.data.split()
+    cylinder1 = colors[0]
+    cylinder2 = colors[1]
+    ring = colors[2]
+    return cylinder1, cylinder2, ring
 
+def get_cylinder_pose(cylinder1, cylinder2):
+    marker_array = rospy.wait_for_message('/cylinder_markers', MarkerArray, timeout=None)
+
+    for marker in marker_array.markers:
+        if marker.color.r == 1 and marker.color.g == 0 and marker.color.b == 0 and (cylinder1 == "red" or cylinder2 == "red") \
+        or marker.color.r == 0 and marker.color.g == 1 and marker.color.b == 0 and (cylinder1 == "green" or cylinder2 == "green") \
+        or marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 1 and (cylinder1 == "blue" or cylinder2 == "green") \
+        or marker.color.r == 1 and marker.color.g == 1 and marker.color.b == 0 and (cylinder1 == "yellow" or cylinder2 == "yellow"):
+            return marker.pose
+    
+    return None
+
+def get_ring_pose(ring):
+    marker_array = rospy.wait_for_message('/ring_markers', MarkerArray, timeout=None)
+
+    for marker in marker_array.markers:
+        if marker.color.r == 1 and marker.color.g == 0 and marker.color.b == 0 and ring == "red" \
+        or marker.color.r == 0 and marker.color.g == 1 and marker.color.b == 0 and ring == "green" \
+        or marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 1 and ring == "blue" \
+        or marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 0 and ring == "black":
+            return marker.pose
+    
+    return None
 
 def main():
     # Initialize the node
@@ -187,21 +217,34 @@ def main():
     rospy.sleep(1)
     arm_command_pub.publish("retract")
 
-    # Start ring and cylinder detection
-    rospy.Subscriber('ring_markers', MarkerArray, get_ring_markers)
-    # rospy.Subscriber('cylinder_markers', MarkerArray, get_cylinder_markers)
-
     # Go through all goals
     move_to_goals()
 
-    # Check if at least one right color cylinder and a ring were detected
-    dialogue_info = get_dialogue_info()
-    if True: # Colors are in marker arrays
-        a = 1
-    else: # Post error message
-        rospy.logerr(f"Not the right ring or cylinder detected.")
-        # Can run move_to_goals() again?
+    # TODO: wait_for_message is not working: it doesn't take the last msg posted into the topic, but waits for a new one. The problem in all get_* functions
+    
+    # Get the ring and cylinders colors
+    print("Waiting for colors...")
+    cylinder1, cylinder2, ring = get_colors()
+    if ring is None or cylinder1 is None or cylinder2 is None:
+        rospy.logerr(f"Not the right face detected. No info about the colors.")
         return
+    print(f"Ring: {ring}, Cylinder1: {cylinder1}, Cylinder2: {cylinder2}")
+    
+    # Get a cylinder pose
+    # print("Waiting for cylinder pose...")
+    # cylinder_pose = get_cylinder_pose(cylinder1, cylinder2)
+    # if cylinder_pose is None:
+    #     rospy.logerr(f"Not the right cylinder detected.")
+    #     return
+    # print(f"Cylinder pose: {cylinder_pose}")
+    
+    # Get a ring pose
+    print("Waiting for ring pose...")
+    ring_pose = get_ring_pose(ring)
+    if ring_pose is None:
+        rospy.logerr(f"Not the right ring detected.")
+        return
+    print(f"Ring pose: {ring_pose}")
 
     # Approach the cylinder
     # TODO
