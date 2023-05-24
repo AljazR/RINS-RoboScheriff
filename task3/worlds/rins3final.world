@@ -54,7 +54,7 @@
         <collision name='classroom_collision'>
           <geometry>
             <mesh>
-              <uri>file:///home/jorge/ROS/src/task3/meshes/rins_2023_task3_final.dae</uri>
+              <uri>file:///home/aljaz/ROS/src/task3/meshes/rins_2023_task3_final.dae</uri>
               <scale>1 1 1</scale>
             </mesh>
           </geometry>
@@ -75,7 +75,7 @@
         <visual name='visual'>
           <geometry>
             <mesh>
-              <uri>file:///home/jorge/ROS/src/task3/meshes/rins_2023_task3_final.dae</uri>
+              <uri>file:///home/aljaz/ROS/src/task3/meshes/rins_2023_task3_final.dae</uri>
               <scale>1 1 1</scale>
             </mesh>
           </geometry>
