@@ -9,6 +9,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PointStamped, Vector3, Pose, PoseWithCovarianceStamped
 from sound_play.libsoundplay import SoundClient
 from std_msgs.msg import String
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 new_face = False
 ring_markers = None
@@ -25,6 +26,8 @@ def get_cylinder_markers(marker_array: MarkerArray):
     return
 
 def precise_parking(pose: Pose):
+    # TODO: this is just a draft
+
     global parking
     parking = True
     
@@ -56,9 +59,13 @@ def approach_cylinder(pose: Pose):
     return
 
 def approach_face(marker_array: MarkerArray):
+    # if the new marker is black, then it is not a face but a wanted poster
+    if marker_array.markers[-1].color.r == 1:
+        return
+
     global new_face
     new_face = True
-
+    
     # Location of the face
     face_position = marker_array.markers[-1].pose.position
     face_orientation = marker_array.markers[-1].pose.orientation
@@ -83,7 +90,7 @@ def approach_face(marker_array: MarkerArray):
             y = new_y[i]
             w = new_w[i]
             z = new_z[i]
-            
+
     if x is not None:
         rospy.loginfo(f"Approaching point [{x:.3f}, {y:.3f}].")
 
@@ -167,7 +174,7 @@ def move_to_goals():
     rospy.loginfo(f"Finished designated goals.")
 
 def get_dialogue_info():
-    # TODO: make a client for the dialogue box
+    # TODO: connect to the service dialogue_box
     return [["blue", "red"], "red"]
 
 
@@ -175,8 +182,12 @@ def main():
     # Initialize the node
     rospy.init_node('goals')
 
+    # Retract the arm
+    arm_command_pub = rospy.Publisher('/arm_command', String, queue_size=10)
+    rospy.sleep(1)
+    arm_command_pub.publish("retract")
+
     # Start ring and cylinder detection
-    # TODO: add cylinder detection and ring detection to the launch file
     rospy.Subscriber('ring_markers', MarkerArray, get_ring_markers)
     # rospy.Subscriber('cylinder_markers', MarkerArray, get_cylinder_markers)
 
