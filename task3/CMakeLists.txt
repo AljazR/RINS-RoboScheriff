@@ -28,6 +28,8 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
 	tf2
 	visualization_msgs
+  rospy
+  message_generation
 )
 
 ## Add include directories
@@ -51,6 +53,17 @@ link_libraries(${Boost_LIBRARIES} ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
 find_package( OpenCV REQUIRED)
 
+## Add message files 
+add_service_files(
+  FILES
+  Dialogue.srv
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
+
 ## Declare the catkin package
 catkin_package(
   LIBRARIES
@@ -64,6 +77,7 @@ catkin_package(
     roscpp
     sensor_msgs
     std_msgs
+    message_runtime
   DEPENDS
     Boost
     Eigen
