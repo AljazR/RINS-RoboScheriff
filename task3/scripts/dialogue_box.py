@@ -61,11 +61,12 @@ def chat(req):
         res.success = False
     else:
         res.success = True
-        print(f"cylinders: {cylinders} ring: {ring}")
-        
-
+        # print(f"cylinders: {cylinders} ring: {ring}")
+    
         # Publish the colors
         colors_pub.publish(f"{cylinders[0]} {cylinders[1]} {ring}")
+
+    print("Waiting for the next person...")
 
     return res
 
@@ -74,7 +75,7 @@ def main():
 
     # make publisher for colors
     global colors_pub
-    colors_pub = rospy.Publisher('/colors', String, queue_size=10)
+    colors_pub = rospy.Publisher('/colors', String, queue_size=10, latch=True)
 
     # make service for dialogue
     rospy.Service('dialogue_box', Dialogue, chat)
