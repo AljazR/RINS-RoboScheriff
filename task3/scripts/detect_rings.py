@@ -11,7 +11,6 @@ from geometry_msgs.msg import PointStamped, Vector3, Pose
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
-# from sound_play.libsoundplay import SoundClient
 
 global ring_poses
 global detection_rate
@@ -34,7 +33,7 @@ class The_Ring:
         self.image_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_image_callback,  queue_size=1)
         
         # Publiser for the visualization markers
-        self.markers_pub = rospy.Publisher('ring_markers', MarkerArray, queue_size=1000)
+        self.markers_pub = rospy.Publisher('ring_markers', MarkerArray, queue_size=1000, latch=True) # latch=True keeps the last message posted until a new message arrives
 
         # Publiser depth image with marked rings
         self.depth_rings_pub = rospy.Publisher('depth_rings', Image, queue_size=1)
