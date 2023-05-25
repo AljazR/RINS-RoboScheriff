@@ -285,3 +285,12 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# Running task3:
+# catkin_make
+# roslaunch task3 essential_final.launch
+# rosrun task3 dialogue_box.py 
+# rosrun task3 face_localizer_dnn.py 
+# rosrun task3 detect_rings.py 
+# rosrun task3 goals.py
