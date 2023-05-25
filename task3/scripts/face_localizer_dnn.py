@@ -185,14 +185,14 @@ class face_localizer:
                 # Find the location of the detected face
                 pose = self.get_pose((x1,x2,y1,y2), face_distance, depth_time)
 
-                # if the same pose is detected 3 times in the radius of 0.5m, then it is the same ring
+                # if the same pose is detected 2 times in the radius of 0.5m, then it is the same ring
                 new_face = True
                 # if you want to skip the check for the same face, set new_marker to True and comment out the for loop and if statement below
                 new_marker = False
                 for face_pose in face_poses:
                     if abs(face_pose[0] - pose.position.x) < 0.5 and abs(face_pose[1] - pose.position.y) < 0.5:
                         new_face = False
-                        if face_poses[face_pose][1] < 3:
+                        if face_poses[face_pose][1] < 2:
                             face_poses[face_pose][1] += 1
                             face_poses[face_pose][0].append(pose)
 
@@ -222,12 +222,12 @@ class face_localizer:
                             print(f'Pose of face [{pose.position.x}, {pose.position.y}] and distance {face_distance}')
                             '''
 
-                            if face_poses[face_pose][1] == 3:
+                            if face_poses[face_pose][1] == 2:
                                 new_marker = True
-                                # Update the pose with the average of the last 3 poses
-                                pose.position.x = sum([p.position.x for p in face_poses[face_pose][0]]) / 3
-                                pose.position.y = sum([p.position.y for p in face_poses[face_pose][0]]) / 3
-                                pose.position.z = sum([p.position.z for p in face_poses[face_pose][0]]) / 3
+                                # Update the pose with the average of the last 2 poses
+                                pose.position.x = sum([p.position.x for p in face_poses[face_pose][0]]) / 2
+                                pose.position.y = sum([p.position.y for p in face_poses[face_pose][0]]) / 2
+                                pose.position.z = sum([p.position.z for p in face_poses[face_pose][0]]) / 2
                         break 
                 
                 # If new ring is detected, add it to the dictionary
