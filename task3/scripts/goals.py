@@ -12,40 +12,50 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from task3.srv import Dialogue, DialogueResponse
 from std_msgs.msg import String
 
+global sound_client
+global arm_command_pub
 new_face = False
 
 def precise_parking(pose: Pose):
+    global arm_command_pub
+    arm_command_pub.publish("extend")
+    rospy.sleep(1)
+
     # TODO: this is just a draft
 
-    global parking
-    parking = True
+    # global parking
+    # parking = True
     
-    pub = rospy.Publisher('/arm_command', String, queue_size=10)
-    pub.publish("extend")
+    # pub = rospy.Publisher('/arm_command', String, queue_size=10)
+    # pub.publish("extend")
 
-    client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
-    client.wait_for_server()
+    # client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+    # client.wait_for_server()
 
-    # rospy.Subscriber('arm_ring_pose', Pose, ??)
+    # # rospy.Subscriber('arm_ring_pose', Pose, ??)
     
-    # Create a goal message
-    goal = MoveBaseGoal()
-    goal.target_pose.header.frame_id = "map"
-    goal.target_pose.pose.position.x = pose.position.x
-    goal.target_pose.pose.position.y = pose.position.y
+    # # Create a goal message
+    # goal = MoveBaseGoal()
+    # goal.target_pose.header.frame_id = "map"
+    # goal.target_pose.pose.position.x = pose.position.x
+    # goal.target_pose.pose.position.y = pose.position.y
 
-    # Send the goal and wait for the result
-    client.send_goal(goal)
-    client.wait_for_result()
+    # # Send the goal and wait for the result
+    # client.send_goal(goal)
+    # client.wait_for_result()
 
-    pub.publish("retract")
-    parking = False
+    # pub.publish("retract")
+    # parking = False
+
+    return
 
 def approach_cylinder(pose: Pose):
+    global sound_client
+
     # TODO
 
-    # Say: "I'm taking you to the prison."
-    return
+    sound_client.say("I'm taking you to the prison.")
+    rospy.sleep(3)
 
 def approach_face(marker_array: MarkerArray):
     # if the new marker is black, then it is not a face but a wanted poster
@@ -81,7 +91,7 @@ def approach_face(marker_array: MarkerArray):
             z = new_z[i]
 
     if x is not None:
-        print(f"Approaching point [{x:.3f}, {y:.3f}].")
+        print(f"Approaching face: [{x:.3f}, {y:.3f}].")
 
         # Send the robot to the face
         client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
@@ -114,7 +124,7 @@ def approach_face(marker_array: MarkerArray):
                 print(f"Service call succeeded with response: {res.success}")
 
             except rospy.ServiceException as e:
-                rospy.logerr(f"Service call to dialog_box failed: {e}")
+                print('\033[93m' + f"Service call to dialog_box failed: {e}" + '\033[0m')
 
         else:
             print(f"Failed to approach face.")
@@ -129,10 +139,10 @@ def move_to_goals():
     rospy.Subscriber('face_markers', MarkerArray, approach_face)
 
     # Goal coordinates
-    x_position =    [-0.64, -1.27, -0.07,  0.15,  0.14,  0.89,  1.92,  2.87,  2.00,  1.11,  1.57,  2.58,  2.58,  1.82,  0.95, -0.03, -0.83, -1.54, -1.45]
-    y_position =    [ 0.95,  0.05, -0.33, -0.78, -1.33, -1.39, -1.11, -0.81,  0.67,  1.45,  0.35,  1.10,  2.06,  2.51,  2.55,  2.67,  1.69,  2.70,  1.68]
-    z_orientation = [-0.98,  0.86, -0.02, -0.99, -0.46,  0.54, -0.58, -0.66,  0.77,  0.15, -0.99,  0.93,  0.16, -0.73,  0.70, -0.60, -0.24,  0.07, -0.76]
-    w_orientation = [ 0.21,  0.51,  0.99,  0.08,  0.89,  0.84,  0.81,  0.75,  0.63,  0.99,  0.13,  0.37,  0.99,  0.68,  0.71,  0.80,  0.99,  0.99,  0.65]
+    x_position =    [-0.64, -1.27, -0.07,  0.15,  0.14,  0.89,  1.92,  2.87,  2.00,  1.11,  1.57,  2.58,  2.58,  1.82,  0.95, -0.03, -0.83]
+    y_position =    [ 0.95,  0.05, -0.33, -0.78, -1.33, -1.39, -1.11, -0.81,  0.67,  1.45,  0.35,  1.10,  2.06,  2.51,  2.55,  2.67,  1.69]
+    z_orientation = [-0.98,  0.86, -0.02, -0.99, -0.46,  0.54, -0.58, -0.66,  0.77,  0.15, -0.99,  0.93,  0.16, -0.73,  0.70, -0.60, -0.24]
+    w_orientation = [ 0.21,  0.51,  0.99,  0.08,  0.89,  0.84,  0.81,  0.75,  0.63,  0.99,  0.13,  0.37,  0.99,  0.68,  0.71,  0.80,  0.99]
 
     i = 0
     while i < len(x_position):
@@ -147,7 +157,7 @@ def move_to_goals():
         # Send the goal and wait for the result
         client.send_goal(goal)
 
-        # Print the status of the goal
+        '''# Print the status of the goal
         print_log = True
         while not rospy.is_shutdown() and not new_face:
             status = client.get_state()
@@ -162,8 +172,19 @@ def move_to_goals():
             elif status in [GoalStatus.PREEMPTED, GoalStatus.ABORTED, GoalStatus.LOST]:
                 rospy.logerr(f"Goal {i} failed with status code: {status}")
                 break
-            rospy.sleep(1)
+            rospy.sleep(1)'''
         
+        # Print the status of the goal
+        while not rospy.is_shutdown() and not new_face:
+            status = client.get_state()
+            if status == GoalStatus.SUCCEEDED:
+                print(f"Goal {i} reached.")
+                break
+            elif status in [GoalStatus.PREEMPTED, GoalStatus.ABORTED, GoalStatus.LOST]:
+                print('\033[93m' + f"Goal {i} failed with status code: {status}" + '\033[0m')
+                break
+            rospy.sleep(1)
+
         # we only increment the goal index if we didn't approach a face, so that we return to the last goal
         if new_face:
             client.cancel_goal()
@@ -188,13 +209,20 @@ def get_cylinder_pose(cylinder1, cylinder2):
     marker_array = rospy.wait_for_message('/cylinder_markers', MarkerArray, timeout=None)
 
     for marker in marker_array.markers:
-        if marker.color.r == 1 and marker.color.g == 0 and marker.color.b == 0 and (cylinder1 == "red" or cylinder2 == "red") \
-        or marker.color.r == 0 and marker.color.g == 1 and marker.color.b == 0 and (cylinder1 == "green" or cylinder2 == "green") \
-        or marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 1 and (cylinder1 == "blue" or cylinder2 == "green") \
-        or marker.color.r == 1 and marker.color.g == 1 and marker.color.b == 0 and (cylinder1 == "yellow" or cylinder2 == "yellow"):
-            return marker.pose
-    
-    return None
+        if marker.color.r == 1 and marker.color.g == 0 and marker.color.b == 0 and cylinder1 == "red" \
+        or marker.color.r == 0 and marker.color.g == 1 and marker.color.b == 0 and cylinder1 == "green" \
+        or marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 1 and cylinder1 == "blue" \
+        or marker.color.r == 1 and marker.color.g == 1 and marker.color.b == 0 and cylinder1 == "yellow":
+            return cylinder1, marker.pose
+
+    for marker in marker_array.markers:
+        if marker.color.r == 1 and marker.color.g == 0 and marker.color.b == 0 and cylinder2 == "red" \
+        or marker.color.r == 0 and marker.color.g == 1 and marker.color.b == 0 and cylinder2 == "green" \
+        or marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 1 and cylinder2 == "blue" \
+        or marker.color.r == 1 and marker.color.g == 1 and marker.color.b == 0 and cylinder2 == "yellow":
+            return cylinder2, marker.pose
+
+    return None, None
 
 def get_ring_pose(ring):
     marker_array = rospy.wait_for_message('/ring_markers', MarkerArray, timeout=None)
@@ -213,49 +241,47 @@ def main():
     rospy.init_node('goals')
 
     # Retract the arm
+    global arm_command_pub
     arm_command_pub = rospy.Publisher('/arm_command', String, queue_size=10)
     rospy.sleep(1)
     arm_command_pub.publish("retract")
 
+    # Set sound clinet
+    global sound_client
+    sound_client = SoundClient()
+
     # Go through all goals
     move_to_goals()
 
-    # TODO: wait_for_message is not working: it doesn't take the last msg posted into the topic, but waits for a new one. The problem in all get_* functions
-    
     # Get the ring and cylinders colors
-    print("Waiting for colors...")
     cylinder1, cylinder2, ring = get_colors()
     if ring is None or cylinder1 is None or cylinder2 is None:
-        rospy.logerr(f"Not the right face detected. No info about the colors.")
+        print('\033[93m' + f"Not the right face detected. No info about the colors." + '\033[0m')
         return
-    print(f"Ring: {ring}, Cylinder1: {cylinder1}, Cylinder2: {cylinder2}")
-    
+    print(f"Colors form dialogue: ring: {ring}, cylinder 1: {cylinder1}, cylinder 2: {cylinder2}.")
+
+    # TODO: set latch=True in publisher for cylinders' MarkerArray. It keeps the last message posted until a new message arrives - we need it for wait_for_message function to work
     # Get a cylinder pose
-    # print("Waiting for cylinder pose...")
-    # cylinder_pose = get_cylinder_pose(cylinder1, cylinder2)
+    # cylinder, cylinder_pose = get_cylinder_pose(cylinder1, cylinder2)
     # if cylinder_pose is None:
-    #     rospy.logerr(f"Not the right cylinder detected.")
-    #     return
-    # print(f"Cylinder pose: {cylinder_pose}")
+    #     print(f"Both cylinders were not detected. Skipping cylinder approach.")
+    # else:
+    #     print(f"Approaching {cylinder} cylinder with position: [{cylinder_pose.position.x:.3f}, {cylinder_pose.position.y:.3f}]")
+    #     # Approach the cylinder
+    #     approach_cylinder(cylinder_pose)
     
     # Get a ring pose
-    print("Waiting for ring pose...")
     ring_pose = get_ring_pose(ring)
     if ring_pose is None:
-        rospy.logerr(f"Not the right ring detected.")
-        return
-    print(f"Ring pose: {ring_pose}")
+        print('\033[93m' + f"{ring[0].upper() + ring[1:]} ring was not detected. Skipping precise parking." + '\033[0m')
+    else:
+        print(f"Precise parking under {ring} ring with pose: [{ring_pose.position.x:.3f}, y:{ring_pose.position.y:.3f}]")
+        # Precise parking
+        precise_parking(ring_pose)
 
-    # Approach the cylinder
-    # TODO
-    # approach_cylinder(cylinder_pose)
-
-    # Precise park
-    # TODO
-    # precise_park(ring_pose)
-    
     # Wave with robot arm and say "I'm done!"
-    # TODO
+    sound_client.say("I'm done!")
+    arm_command_pub.publish("wave")
 
 if __name__ == '__main__':
     main()
