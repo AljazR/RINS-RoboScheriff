@@ -42,9 +42,6 @@ class The_Ring:
         self.tf_buf = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buf)
 
-        # Sound client
-        # self.soundClient = SoundClient()
-
     def get_pose(self, e, dist, color):
         # if dist > 3:
         #     return
@@ -79,7 +76,7 @@ class The_Ring:
         pose.position.z = point_world.point.z
         # print(f"pose: {pose.position.x}, {pose.position.y}, {pose.position.z}")
 
-        # if the same pose is detected 7 times in the radius of 0.5m, then it is the same ring
+        # if the same pose is detected 7 times in the radius of 0.4m, then it is the same ring
         new_ring = True
         new_marker = False
         for ring_pose in ring_poses:
@@ -87,7 +84,7 @@ class The_Ring:
             if color == ring_poses[ring_pose][2]:
                 max_dist = 1.0
             else:
-                max_dist = 0.5
+                max_dist = 0.4
 
             if abs(ring_pose[0] - pose.position.x) < max_dist and abs(ring_pose[1] - pose.position.y) < max_dist:
                 new_ring = False
@@ -119,7 +116,7 @@ class The_Ring:
                 color_exists = True
                 break
 
-            if abs(marker.pose.position.x - pose.position.x) < 0.5 and abs(marker.pose.position.y - pose.position.y) < 0.5:
+            if abs(marker.pose.position.x - pose.position.x) < 0.4 and abs(marker.pose.position.y - pose.position.y) < 0.4:
                 first_in_proximity = False
                 
 
