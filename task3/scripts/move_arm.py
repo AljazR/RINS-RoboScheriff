@@ -33,6 +33,14 @@ class Arm_Mover():
         self.right.points = [JointTrajectoryPoint(positions=[-1.57,0.3,1,0],
                                                     time_from_start = rospy.Duration(1))]
 
+    def wave(self):
+        # Wave the arm
+        self.arm_movement_pub.publish(self.retract)
+        time.sleep(1)
+        self.arm_movement_pub.publish(self.extend)
+        time.sleep(1)
+        self.arm_movement_pub.publish(self.retract)
+
     def new_user_command(self, data):
         self.user_command = data.data.strip()
         self.send_command = True
@@ -49,6 +57,9 @@ class Arm_Mover():
             elif self.user_command == 'right':
                 self.arm_movement_pub.publish(self.right)
                 print('Right-ed arm!')
+            elif self.user_command == 'wave':
+                self.wave()
+                print('Waved arm!')
             else:
                 print('Unknown instruction:', self.user_command)
                 return(-1)
