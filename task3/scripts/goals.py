@@ -11,49 +11,82 @@ from sound_play.libsoundplay import SoundClient
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from task3.srv import Dialogue, DialogueResponse
 from std_msgs.msg import String
+from nav_msgs.msg import OccupancyGrid
 
 global sound_client
 global arm_command_pub
 new_face = False
 
 def precise_parking(pose: Pose):
+    # Create a SimpleActionClient
+    client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+    client.wait_for_server()
+
+    # Get a global costmap 
+    cost_map = rospy.wait_for_message('/move_base/global_costmap/costmap', OccupancyGrid)
+    resolution = cost_map.info.resolution
+    origin = cost_map.info.origin.position
+    width = cost_map.info.width
+
+    # Check if pose is valid
+    if cost_map.data[int((pose.position.x - origin.x) / resolution) + int((pose.position.y - origin.y) / resolution) * width] != 0:
+        print("Pose is invalid.")
+        # Find closest valid pose
+        new_x = 0
+        new_y = 0
+        closest_distance = 1000
+        for i in range(len(cost_map.data)):
+            if cost_map.data[i] == 0:
+                temp_x = origin.x + (i % width) * resolution
+                temp_y = origin.y + (i // width) * resolution
+                distance = math.sqrt((pose.position.x - temp_x)**2 + (pose.position.y - temp_y)**2)
+                if distance < closest_distance:
+                    closest_distance = distance
+                    new_x = temp_x
+                    new_y = temp_y
+        # Update pose
+        pose.position.x = new_x
+        pose.position.y = new_y
+        print(f"New pose: [{new_x:.3f}, {new_y:.3f}]")
+    else:
+        print("Pose is valid.")
+    
+    # Go to the pose under the ring
+    goal = MoveBaseGoal()
+    goal.target_pose.header.frame_id = "map"
+    goal.target_pose.pose.position.x = pose.position.x
+    goal.target_pose.pose.position.y = pose.position.y
+    goal.target_pose.pose.orientation.w = 0
+    goal.target_pose.pose.orientation.z = 1
+    client.send_goal(goal)
+    client.wait_for_result()
+
+    # Extend the arm when the pose is reached
     global arm_command_pub
     arm_command_pub.publish("extend")
-    rospy.sleep(1)
+    rospy.sleep(2)
 
-    # TODO: this is just a draft
+    # Get current location of the robot
+    robot_location = rospy.wait_for_message('/amcl_pose', PoseWithCovarianceStamped)
 
-    # global parking
-    # parking = True
-    
-    # pub = rospy.Publisher('/arm_command', String, queue_size=10)
-    # pub.publish("extend")
+    # Spin on the spot
+    w = [ 0.7, 1, 0.7]
+    z = [-0.7, 0, 0.7]
+    for i in range(3):
+        goal.target_pose.pose.position.x = robot_location.pose.pose.position.x
+        goal.target_pose.pose.position.y = robot_location.pose.pose.position.y
+        goal.target_pose.pose.orientation.z = z[i]
+        goal.target_pose.pose.orientation.w = w[i]
+        client.send_goal(goal)
+        client.wait_for_result()        
 
-    # client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
-    # client.wait_for_server()
-
-    # # rospy.Subscriber('arm_ring_pose', Pose, ??)
-    
-    # # Create a goal message
-    # goal = MoveBaseGoal()
-    # goal.target_pose.header.frame_id = "map"
-    # goal.target_pose.pose.position.x = pose.position.x
-    # goal.target_pose.pose.position.y = pose.position.y
-
-    # # Send the goal and wait for the result
-    # client.send_goal(goal)
-    # client.wait_for_result()
-
-    # pub.publish("retract")
-    # parking = False
-
-    return
+    # TODO: Find the ring on the floor and park in it
 
 def approach_cylinder(pose: Pose):
-    global sound_client
 
     # TODO
 
+    global sound_client
     sound_client.say("I'm taking you to the prison.")
     rospy.sleep(3)
 
@@ -249,6 +282,7 @@ def main():
     # Set sound clinet
     global sound_client
     sound_client = SoundClient()
+    rospy.sleep(3)
 
     # Go through all goals
     move_to_goals()
@@ -260,6 +294,7 @@ def main():
         return
     print(f"Colors form dialogue: ring: {ring}, cylinder 1: {cylinder1}, cylinder 2: {cylinder2}.")
 
+    '''
     # TODO: set latch=True in publisher for cylinders' MarkerArray. It keeps the last message posted until a new message arrives - we need it for wait_for_message function to work
     # Get a cylinder pose
     # cylinder, cylinder_pose = get_cylinder_pose(cylinder1, cylinder2)
@@ -269,13 +304,14 @@ def main():
     #     print(f"Approaching {cylinder} cylinder with position: [{cylinder_pose.position.x:.3f}, {cylinder_pose.position.y:.3f}]")
     #     # Approach the cylinder
     #     approach_cylinder(cylinder_pose)
-    
+    '''
+
     # Get a ring pose
     ring_pose = get_ring_pose(ring)
     if ring_pose is None:
         print('\033[93m' + f"{ring[0].upper() + ring[1:]} ring was not detected. Skipping precise parking." + '\033[0m')
     else:
-        print(f"Precise parking under {ring} ring with pose: [{ring_pose.position.x:.3f}, y:{ring_pose.position.y:.3f}]")
+        print(f"Precise parking under {ring} ring with pose: [{ring_pose.position.x:.3f}, {ring_pose.position.y:.3f}]")
         # Precise parking
         precise_parking(ring_pose)
 
