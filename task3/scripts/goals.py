@@ -29,14 +29,14 @@ def precise_parking(pose: Pose):
     width = cost_map.info.width
 
     # Check if pose is valid
-    if cost_map.data[int((pose.position.x - origin.x) / resolution) + int((pose.position.y - origin.y) / resolution) * width] != 0:
+    if cost_map.data[int((pose.position.x - origin.x) / resolution) + int((pose.position.y - origin.y) / resolution) * width] < 0.4:
         print("Pose is invalid.")
         # Find closest valid pose
         new_x = 0
         new_y = 0
         closest_distance = 1000
         for i in range(len(cost_map.data)):
-            if cost_map.data[i] == 0:
+            if cost_map.data[i] < 0.4:
                 temp_x = origin.x + (i % width) * resolution
                 temp_y = origin.y + (i // width) * resolution
                 distance = math.sqrt((pose.position.x - temp_x)**2 + (pose.position.y - temp_y)**2)
@@ -80,7 +80,14 @@ def precise_parking(pose: Pose):
         client.send_goal(goal)
         client.wait_for_result()        
 
-    # TODO: Find the ring on the floor and park in it
+    # TODO: find the ring on the floor and park in it
+    # pose = rospy.wait_for_message('/arm_ring_pose', Pose)
+    # goal.target_pose.pose.position.x = pose.position.x
+    # goal.target_pose.pose.position.y = pose.position.y
+    # goal.target_pose.pose.orientation.z = z[0]
+    # goal.target_pose.pose.orientation.w = w[0]
+    # client.send_goal(goal)
+    # client.wait_for_result()
 
 def approach_cylinder(pose: Pose):
 
@@ -172,10 +179,10 @@ def move_to_goals():
     rospy.Subscriber('face_markers', MarkerArray, approach_face)
 
     # Goal coordinates
-    x_position =    [-0.64, -1.27, -0.07,  0.15,  0.14,  0.89,  1.92,  2.87,  2.00,  1.11,  1.57,  2.58,  2.58,  1.82,  0.95, -0.03, -0.83]
-    y_position =    [ 0.95,  0.05, -0.33, -0.78, -1.33, -1.39, -1.11, -0.81,  0.67,  1.45,  0.35,  1.10,  2.06,  2.51,  2.55,  2.67,  1.69]
-    z_orientation = [-0.98,  0.86, -0.02, -0.99, -0.46,  0.54, -0.58, -0.66,  0.77,  0.15, -0.99,  0.93,  0.16, -0.73,  0.70, -0.60, -0.24]
-    w_orientation = [ 0.21,  0.51,  0.99,  0.08,  0.89,  0.84,  0.81,  0.75,  0.63,  0.99,  0.13,  0.37,  0.99,  0.68,  0.71,  0.80,  0.99]
+    x_position =    [-0.64, -1.27, -0.07,  0.15,  0.14,  0.89,  1.92,  2.20,  3.65,  2.00,  1.11,  1.57,  2.58,  2.58,  1.82,  0.95, -0.03, -0.83]
+    y_position =    [ 0.95,  0.05, -0.33, -0.78, -1.33, -1.39, -1.11, -0.81, -0.80,  0.67,  1.45,  0.35,  1.10,  2.06,  2.51,  2.55,  2.67,  1.69]
+    z_orientation = [-0.98,  0.86, -0.02, -0.99, -0.46,  0.54, -0.58, -0.66,  1.00,  0.77,  0.15, -0.99,  0.93,  0.16, -0.73,  0.70, -0.60, -0.24]
+    w_orientation = [ 0.21,  0.51,  0.99,  0.08,  0.89,  0.84,  0.81,  0.75,  0.00,  0.63,  0.99,  0.13,  0.37,  0.99,  0.68,  0.71,  0.80,  0.99]
 
     i = 0
     while i < len(x_position):
@@ -189,23 +196,6 @@ def move_to_goals():
 
         # Send the goal and wait for the result
         client.send_goal(goal)
-
-        '''# Print the status of the goal
-        print_log = True
-        while not rospy.is_shutdown() and not new_face:
-            status = client.get_state()
-            if status == GoalStatus.ACTIVE and print_log:
-                print(f"Goal {i} is being processed.")
-                print_log = False
-            elif status == GoalStatus.PENDING:
-                print(f"Goal {i} is pending.")
-            elif status == GoalStatus.SUCCEEDED:
-                print(f"Goal {i} reached.")
-                break
-            elif status in [GoalStatus.PREEMPTED, GoalStatus.ABORTED, GoalStatus.LOST]:
-                rospy.logerr(f"Goal {i} failed with status code: {status}")
-                break
-            rospy.sleep(1)'''
         
         # Print the status of the goal
         while not rospy.is_shutdown() and not new_face:
@@ -307,6 +297,7 @@ def main():
     '''
 
     # Get a ring pose
+    # ring = "blue"
     ring_pose = get_ring_pose(ring)
     if ring_pose is None:
         print('\033[93m' + f"{ring[0].upper() + ring[1:]} ring was not detected. Skipping precise parking." + '\033[0m')
