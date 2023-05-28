@@ -223,18 +223,17 @@ class The_Ring:
             cv2.ellipse(cv_image_copy, e1, (0, 255, 0), -1)
 
             # GET THE DEPTH OF THE RIM OF THE ELLIPSES
+            # Updated the precison of the depth image, but only for the ring depth
+            precise_depth_image = self.bridge.imgmsg_to_cv2(data, "32FC1")
             # Get coordinates of the blue pixels in depth_img
             blue_pixels = np.where(depth_rgb_copy[:,:,0] == 255)
             # Get the depth of the blue pixels
-            blue_depth = depth_image[blue_pixels[0], blue_pixels[1]]
-            # Remove the 0 and 5 values
-            blue_depth = blue_depth[blue_depth != 0]
-            blue_depth = blue_depth[blue_depth != 5]
-            # Find frequency of each values
-            values, counts = np.unique(blue_depth, return_counts=True)
-            # Find value with highest frequency
-            rim_depth = np.mean(values)
-            # print(f" RING-BLUE: {np.unique(blue_depth, return_counts=True)}")
+            blue_depth = precise_depth_image[blue_pixels[0], blue_pixels[1]]
+            # Remove weird values because of the simluator
+            blue_depth = blue_depth[blue_depth != 'nan']
+            blue_depth = blue_depth[blue_depth < 4.5]
+            # Get depth
+            rim_depth = np.mean(blue_depth)
 
 
             # GET THE DEPTH OF THE CENTER OF THE ELLIPSES
@@ -247,8 +246,6 @@ class The_Ring:
             # Find out the rate of 0 and 5 -> if it is a ring, then the center has mostly 0 and 5 values
             count_0_5 = counts[0] + counts[-1]
             rate_0_5 = count_0_5/len(green_depth)
-            # print(f" CENTER-GREEN: {np.unique(green_depth, return_counts=True)} rate: {rate_0_5}")
-
 
             if rate_0_5 > 0.8:
                 # GET THE COLOR OF THE RING
