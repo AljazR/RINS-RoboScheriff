@@ -11,11 +11,12 @@ from geometry_msgs.msg import PointStamped, Vector3, Pose
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
+from std_msgs.msg import String
 
 
 class The_Ring:
     def __init__(self):
-        # rospy.init_node('image_converter', anonymous=True)
+        rospy.init_node('detect_rings_arm', anonymous=True)
 
         # An object we use for converting images between ROS format and OpenCV format
         self.bridge = CvBridge()
@@ -31,19 +32,28 @@ class The_Ring:
         self.image_sub = rospy.Subscriber("/arm_camera/rgb/image_raw", Image, self.image_callback)
 
         # Publiser for the visualization markers
-        self.markers_pub = rospy.Publisher('arm_markers', MarkerArray, queue_size=1000)
+        self.markers_pub = rospy.Publisher('parking_markers', MarkerArray, queue_size=1000)
 
         # Object we use for transforming between coordinate frames
         self.tf_buf = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buf)
 
         # Publisher for pose
-        self.pose_pub = rospy.Publisher('arm_ring_pose', Pose, queue_size=1000)
+        self.pose_pub = rospy.Publisher('arm_ring_pose', Pose, queue_size=1000, latch=True)
 
+        # Arm position subscriber
+        self.arm_position_sub = rospy.Subscriber("/arm_position", String, self.new_arm_position)
+        self.arm_extended = False
+
+    def new_arm_position(self, data):
+        if data.data == 'extend':
+            self.arm_extended = True
+        else:
+            self.arm_extended = False
+        print(self.arm_extended)
 
     def get_pose(self,e,dist):
         # Calculate the position of the detected ellipse
-
         k_f = 525 # kinect focal length in pixels
 
         elipse_x = self.dims[1] / 2 - e[0][0]
@@ -97,9 +107,9 @@ class The_Ring:
 
             self.pose_pub.publish(pose)
 
-
-
     def image_callback(self,data):
+        if not self.arm_extended:
+            return
 
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -109,7 +119,7 @@ class The_Ring:
         # Set the dimensions of the image
         self.dims = cv_image.shape
 
-        # Tranform image to gayscale
+        # Tranform image to grayscale
         gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
 
         # Do histogram equlization
@@ -182,7 +192,7 @@ class The_Ring:
                 cv2.waitKey(1)
 
 
-def green_ring_callback(pose):
+def main():
     ring_finder = The_Ring()
 
     try:
@@ -190,18 +200,7 @@ def green_ring_callback(pose):
     except KeyboardInterrupt:
         print("Shutting down")
 
-def main():
-    rospy.init_node('detect_rings_arm', anonymous=True)
-
-    sub = rospy.Subscriber('/green_ring_pose', Pose, green_ring_callback)
-
-    try:
-        rospy.spin()
-    except KeyboardInterrupt:
-        print("Shutting down")
-
     cv2.destroyAllWindows()
-
 
 if __name__ == '__main__':
     main()
