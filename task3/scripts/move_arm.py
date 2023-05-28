@@ -12,6 +12,7 @@ class Arm_Mover():
         
         self.arm_movement_pub = rospy.Publisher('/turtlebot_arm/arm_controller/command', JointTrajectory, queue_size=1)
         self.arm_user_command_sub = rospy.Subscriber("/arm_command", String, self.new_user_command)
+        self.position_pub = rospy.Publisher('/arm_position', String, queue_size=1, latch=True)
 
         # Just for controlling wheter to set the new arm position
         self.user_command = None
@@ -50,15 +51,19 @@ class Arm_Mover():
         if self.send_command:
             if self.user_command == 'retract':
                 self.arm_movement_pub.publish(self.retract)
+                self.position_pub.publish('retract')
                 print('Retracted arm!')
             elif self.user_command == 'extend':
                 self.arm_movement_pub.publish(self.extend)
+                self.position_pub.publish('extend')
                 print('Extended arm!')
             elif self.user_command == 'right':
                 self.arm_movement_pub.publish(self.right)
+                self.position_pub.publish('right')
                 print('Right-ed arm!')
             elif self.user_command == 'wave':
                 self.wave()
+                self.position_pub.publish('retract')
                 print('Waved arm!')
             else:
                 print('Unknown instruction:', self.user_command)
