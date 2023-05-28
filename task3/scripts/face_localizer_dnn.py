@@ -196,32 +196,6 @@ class face_localizer:
                             face_poses[face_pose][1] += 1
                             face_poses[face_pose][0].append(pose)
 
-                            # this is for generating pictures for training wanted poster vs face classifier
-                            '''
-                            face_region = rgb_image.copy()
-                            try:
-                                y_add = int(abs(y2-y1)/1.5)
-                                x_add = int(abs(x2-x1)/1.5)
-                                
-                                if x1 < x_add:
-                                    face_region = rgb_image[y1-y_add:y2+y_add, x1:x2+x2]
-                                    print("left")
-                                elif x2 + x_add > w:
-                                    print("right")
-                                    face_region = rgb_image[y1-y_add:y2+y_add, x1-x1:x2]
-                                else:
-                                    print("normal")
-                                    face_region = rgb_image[y1-y_add:y2+y_add, x1-x_add:x2+x_add]
-                            except Exception as e:
-                                print("Had to take a whole image") 
-
-                            print(face_region.shape)
-
-                            # Publish the image of the face
-                            self.training_face_pub.publish(self.bridge.cv2_to_imgmsg(face_region, "bgr8"))
-                            print(f'Pose of face [{pose.position.x}, {pose.position.y}] and distance {face_distance}')
-                            '''
-
                             if face_poses[face_pose][1] == 2:
                                 new_marker = True
                                 # Update the pose with the average of the last 2 poses
