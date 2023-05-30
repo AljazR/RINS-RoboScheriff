@@ -27,7 +27,7 @@ visualization_msgs::MarkerArray marker_array;
 int marker_id = 0;
 
 tf2_ros::Buffer tf2_buffer;
-typedef pcl::PointXYZ PointT;
+typedef pcl::PointXYZRGB PointT;
 
 struct Cylinder
 {
@@ -162,56 +162,6 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 
     tf2::doTransform(point_camera, point_map, tss);
 
-    // Version with checking multiple detections (if you try this you need to uncomment the code below and change pose parameter in the marker)
-    /*
-    // Look if any cylinder in cylinders is in the same rang of 0.5m
-    int i = 0;
-    bool new_detection = true;
-    for (i = 0; i < cylinders.size(); i++)
-    {
-      if (fabs(cylinders[i].pose.x - point_map.point.x) < 0.5 && fabs(cylinders[i].pose.y - point_map.point.y) < 0.5)
-      {
-        new_detection = false;
-        cylinders[i].pose.x += point_map.point.x;
-        cylinders[i].pose.x /= 2;
-        cylinders[i].pose.y += point_map.point.y;
-        cylinders[i].pose.y /= 2;
-        cylinders[i].pose.z += point_map.point.z;
-        cylinders[i].pose.z /= 2;
-
-        if (cylinders[i].count_detections < 3)
-        {
-          cylinders[i].count_detections++;
-          if (cylinders[i].count_detections == 3)
-            break;
-          else
-            return;
-        }
-        else if (cylinders[i].count_detections == 3)
-          return;
-        else
-          break;
-      }
-    }
-    if (new_detection)
-    {
-      Cylinder new_cylinder;
-      new_cylinder.pose.x = point_map.point.x;
-      new_cylinder.pose.y = point_map.point.y;
-      new_cylinder.pose.z = point_map.point.z;
-      new_cylinder.count_detections = 1;
-      cylinders.push_back(new_cylinder);
-      return;
-    }
-
-    // If pose.z is not in range of 0.20 to 0.25 it probably is a false detection
-    if (!(cylinders[i].pose.z < 0.25 && cylinders[i].pose.z > 0.20))
-    {
-      std::cerr << "False detection: x:" << cylinders[i].pose.x << " y: " << cylinders[i].pose.y << " z: " << cylinders[i].pose.z << std::endl;
-      return;
-    }
-    */
-
     // Look if any cylinder in cylinders is in the same rang of 0.5m
     int i = 0;
     for (i = 0; i < marker_array.markers.size(); i++)
@@ -274,8 +224,8 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
     marker.color.b = b_mean / 255.0f;
     marker.color.a = 1.0f;
 
-    // std::cerr << "PointCloud color: r: " << r_mean << ", g: " << g_mean << ", b: " << b_mean << std::endl;
-    // std::cerr << "Marker color: r:" << marker.color.r << " g: " << marker.color.g << " b: " << marker.color.b << "\n\n" << std::endl;
+    std::cerr << "PointCloud color: r: " << r_mean << ", g: " << g_mean << ", b: " << b_mean << std::endl;
+    std::cerr << "Marker color: r:" << marker.color.r << " g: " << marker.color.g << " b: " << marker.color.b << "\n\n" << std::endl;
 
     marker.lifetime = ros::Duration();
 
