@@ -230,21 +230,21 @@ def get_colors():
 
 def get_cylinder_pose(cylinder1, cylinder2):
     marker_array = rospy.wait_for_message('/cylinder_markers', MarkerArray, timeout=None)
-
+    
     for marker in marker_array.markers:
-        if marker.color.r == 1 and marker.color.g == 0 and marker.color.b == 0 and cylinder1 == "red" \
-        or marker.color.r == 0 and marker.color.g == 1 and marker.color.b == 0 and cylinder1 == "green" \
-        or marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 1 and cylinder1 == "blue" \
-        or marker.color.r == 1 and marker.color.g == 1 and marker.color.b == 0 and cylinder1 == "yellow":
+        rgb = [marker.color.r, marker.color.g, marker.color.b]
+        max_index = rgb.index(max(rgb))
+
+        if max_index == 0 and cylinder1 == "red" \
+        or max_index == 1 and cylinder1 == "green" \
+        or max_index == 2 and cylinder1 == "blue":
             return cylinder1, marker.pose
 
-    for marker in marker_array.markers:
-        if marker.color.r == 1 and marker.color.g == 0 and marker.color.b == 0 and cylinder2 == "red" \
-        or marker.color.r == 0 and marker.color.g == 1 and marker.color.b == 0 and cylinder2 == "green" \
-        or marker.color.r == 0 and marker.color.g == 0 and marker.color.b == 1 and cylinder2 == "blue" \
-        or marker.color.r == 1 and marker.color.g == 1 and marker.color.b == 0 and cylinder2 == "yellow":
+        if max_index == 0 and cylinder2 == "red" \
+        or max_index == 1 and cylinder2 == "green" \
+        or max_index == 2 and cylinder2 == "blue":
             return cylinder2, marker.pose
-
+    
     return None, None
 
 def get_ring_pose(ring):
