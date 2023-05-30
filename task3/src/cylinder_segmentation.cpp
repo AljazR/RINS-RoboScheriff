@@ -21,19 +21,25 @@
 
 ros::Publisher pubx;
 ros::Publisher puby;
-ros::Publisher pubm;
 ros::Publisher pubma;
 
 visualization_msgs::MarkerArray marker_array;
+int marker_id = 0;
 
 tf2_ros::Buffer tf2_buffer;
-
 typedef pcl::PointXYZ PointT;
+
+struct Cylinder
+{
+  int count_detections;
+  geometry_msgs::Point pose;
+};
+
+std::vector<Cylinder> cylinders;
 
 void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 {
   // All the objects needed
-
   ros::Time time_rec, time_test;
   time_rec = ros::Time::now();
 
@@ -57,14 +63,12 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 
   // Read in the cloud data
   pcl::fromPCLPointCloud2(*cloud_blob, *cloud);
-  std::cerr << "PointCloud has: " << cloud->points.size() << " data points." << std::endl;
 
   // Build a passthrough filter to remove spurious NaNs
   pass.setInputCloud(cloud);
   pass.setFilterFieldName("z");
   pass.setFilterLimits(0, 1.5);
   pass.filter(*cloud_filtered);
-  std::cerr << "PointCloud after filtering has: " << cloud_filtered->points.size() << " data points." << std::endl;
 
   // Estimate point normals
   ne.setSearchMethod(tree);
@@ -83,7 +87,6 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
   seg.setInputNormals(cloud_normals);
   // Obtain the plane inliers and coefficients
   seg.segment(*inliers_plane, *coefficients_plane);
-  std::cerr << "Plane coefficients: " << *coefficients_plane << std::endl;
 
   // Extract the planar inliers from the input cloud
   extract.setInputCloud(cloud_filtered);
@@ -93,7 +96,6 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
   // Write the planar inliers to disk
   pcl::PointCloud<PointT>::Ptr cloud_plane(new pcl::PointCloud<PointT>());
   extract.filter(*cloud_plane);
-  std::cerr << "PointCloud representing the planar component: " << cloud_plane->points.size() << " data points." << std::endl;
 
   pcl::PCLPointCloud2 outcloud_plane;
   pcl::toPCLPointCloud2(*cloud_plane, outcloud_plane);
@@ -120,7 +122,6 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 
   // Obtain the cylinder inliers and coefficients
   seg.segment(*inliers_cylinder, *coefficients_cylinder);
-  std::cerr << "Cylinder coefficients: " << *coefficients_cylinder << std::endl;
 
   // Write the cylinder inliers to disk
   extract.setInputCloud(cloud_filtered2);
@@ -128,14 +129,10 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
   extract.setNegative(false);
   pcl::PointCloud<PointT>::Ptr cloud_cylinder(new pcl::PointCloud<PointT>());
   extract.filter(*cloud_cylinder);
-  if (cloud_cylinder->points.empty())
-    std::cerr << "Can't find the cylindrical component." << std::endl;
-  else
-  {
-    std::cerr << "PointCloud representing the cylindrical component: " << cloud_cylinder->points.size() << " data points." << std::endl;
 
+  if (!cloud_cylinder->points.empty())
+  {
     pcl::compute3DCentroid(*cloud_cylinder, centroid);
-    std::cerr << "centroid of the cylindrical component: " << centroid[0] << " " << centroid[1] << " " << centroid[2] << " " << centroid[3] << std::endl;
 
     // Create a point in the "camera_rgb_optical_frame"
     geometry_msgs::PointStamped point_camera;
@@ -156,36 +153,89 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
     try
     {
       time_test = ros::Time::now();
-
-      std::cerr << time_rec << std::endl;
-      std::cerr << time_test << std::endl;
       tss = tf2_buffer.lookupTransform("map", "camera_rgb_optical_frame", time_rec);
-      // tf2_buffer.transform(point_camera, point_map, "map", ros::Duration(2));
     }
     catch (tf2::TransformException &ex)
     {
       ROS_WARN("Transform warning: %s\n", ex.what());
     }
 
-    // std::cerr << tss ;
-
     tf2::doTransform(point_camera, point_map, tss);
 
-    std::cerr << "point_camera: " << point_camera.point.x << " " << point_camera.point.y << " " << point_camera.point.z << std::endl;
+    // Version with checking multiple detections (if you try this you need to uncomment the code below and change pose parameter in the marker)
+    /*
+    // Look if any cylinder in cylinders is in the same rang of 0.5m
+    int i = 0;
+    bool new_detection = true;
+    for (i = 0; i < cylinders.size(); i++)
+    {
+      if (fabs(cylinders[i].pose.x - point_map.point.x) < 0.5 && fabs(cylinders[i].pose.y - point_map.point.y) < 0.5)
+      {
+        new_detection = false;
+        cylinders[i].pose.x += point_map.point.x;
+        cylinders[i].pose.x /= 2;
+        cylinders[i].pose.y += point_map.point.y;
+        cylinders[i].pose.y /= 2;
+        cylinders[i].pose.z += point_map.point.z;
+        cylinders[i].pose.z /= 2;
 
-    std::cerr << "point_map: " << point_map.point.x << " " << point_map.point.y << " " << point_map.point.z << std::endl;
+        if (cylinders[i].count_detections < 3)
+        {
+          cylinders[i].count_detections++;
+          if (cylinders[i].count_detections == 3)
+            break;
+          else
+            return;
+        }
+        else if (cylinders[i].count_detections == 3)
+          return;
+        else
+          break;
+      }
+    }
+    if (new_detection)
+    {
+      Cylinder new_cylinder;
+      new_cylinder.pose.x = point_map.point.x;
+      new_cylinder.pose.y = point_map.point.y;
+      new_cylinder.pose.z = point_map.point.z;
+      new_cylinder.count_detections = 1;
+      cylinders.push_back(new_cylinder);
+      return;
+    }
+
+    // If pose.z is not in range of 0.20 to 0.25 it probably is a false detection
+    if (!(cylinders[i].pose.z < 0.25 && cylinders[i].pose.z > 0.20))
+    {
+      std::cerr << "False detection: x:" << cylinders[i].pose.x << " y: " << cylinders[i].pose.y << " z: " << cylinders[i].pose.z << std::endl;
+      return;
+    }
+    */
+
+    // Look if any cylinder in cylinders is in the same rang of 0.5m
+    int i = 0;
+    for (i = 0; i < marker_array.markers.size(); i++)
+    {
+      if (fabs(marker_array.markers[i].pose.position.x - point_map.point.x) < 0.5 && fabs(marker_array.markers[i].pose.position.y - point_map.point.y) < 0.5)
+          return;
+    }
+
+    // If pose.z is not in range of 0.20 to 0.25 it probably is a false detection
+    if (!(point_map.point.z < 0.25 && point_map.point.z > 0.20))
+    {
+      std::cerr << "False detection: x:" << point_map.point.x << " y: " << point_map.point.y << " z: " << point_map.point.z << std::endl;
+      return;
+    }
 
     marker.header.frame_id = "map";
     marker.header.stamp = ros::Time::now();
 
     marker.ns = "cylinder";
-    marker.id = 0;
+    marker.id = marker_id;
+    marker_id++;
 
     marker.type = visualization_msgs::Marker::CYLINDER;
     marker.action = visualization_msgs::Marker::ADD;
-
-    // print point_map
-    printf("point_map: %f %f %f", point_map.point.x, point_map.point.y, point_map.point.z);
 
     marker.pose.position.x = point_map.point.x;
     marker.pose.position.y = point_map.point.y;
@@ -195,21 +245,42 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
     marker.pose.orientation.z = 0.0;
     marker.pose.orientation.w = 1.0;
 
-    marker.scale.x = 0.1;
-    marker.scale.y = 0.1;
-    marker.scale.z = 0.1;
+    std::cerr << "New cylinder: x:" << point_map.point.x << " y: " << point_map.point.y << " z: " << point_map.point.z << std::endl;
+    // std::cerr << "New cylinder: x:" << cylinders[i].pose.x << " y: " << cylinders[i].pose.y << " z: " << cylinders[i].pose.z << std::endl;
 
-    marker.color.r = 0.0f;
-    marker.color.g = 1.0f;
-    marker.color.b = 0.0f;
+    marker.scale.x = 0.2;
+    marker.scale.y = 0.2;
+    marker.scale.z = 0.2;
+
+    // Color detection - does not work -> wrong point cloud without color
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_cylinder_rgb(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::copyPointCloud(*cloud_cylinder, *cloud_cylinder_rgb);
+
+    int r_mean = 0;
+    int g_mean = 0;
+    int b_mean = 0;
+    for (size_t i = 0; i < cloud_cylinder_rgb->points.size(); ++i)
+    {
+      r_mean += cloud_cylinder_rgb->points[i].r;
+      g_mean += cloud_cylinder_rgb->points[i].g;
+      b_mean += cloud_cylinder_rgb->points[i].b;
+    }
+    r_mean /= cloud_cylinder_rgb->points.size();
+    g_mean /= cloud_cylinder_rgb->points.size();
+    b_mean /= cloud_cylinder_rgb->points.size();
+
+    marker.color.r = r_mean / 255.0f;
+    marker.color.g = g_mean / 255.0f;
+    marker.color.b = b_mean / 255.0f;
     marker.color.a = 1.0f;
+
+    // std::cerr << "PointCloud color: r: " << r_mean << ", g: " << g_mean << ", b: " << b_mean << std::endl;
+    // std::cerr << "Marker color: r:" << marker.color.r << " g: " << marker.color.g << " b: " << marker.color.b << "\n\n" << std::endl;
 
     marker.lifetime = ros::Duration();
 
-    pubm.publish(marker);
     marker_array.markers.push_back(marker);
     pubma.publish(marker_array);
-
 
     pcl::PCLPointCloud2 outcloud_cylinder;
     pcl::toPCLPointCloud2(*cloud_cylinder, outcloud_cylinder);
@@ -233,9 +304,8 @@ int main(int argc, char **argv)
   pubx = nh.advertise<pcl::PCLPointCloud2>("planes", 1);
   puby = nh.advertise<pcl::PCLPointCloud2>("cylinder", 1);
 
-  pubm = nh.advertise<visualization_msgs::Marker>("detected_cylinder", 1);
-  pubma = nh.advertise<visualization_msgs::MarkerArray>("detected_cylinder_array", 1);
-  
+  pubma = nh.advertise<visualization_msgs::MarkerArray>("cylinder_markers", 1, true);
+
   // Spin
   ros::spin();
 }
