@@ -284,20 +284,16 @@ def main():
         return
     print(f"Colors form dialogue: ring: {ring}, cylinder 1: {cylinder1}, cylinder 2: {cylinder2}.")
 
-    '''
-    # TODO: set latch=True in publisher for cylinders' MarkerArray. It keeps the last message posted until a new message arrives - we need it for wait_for_message function to work
     # Get a cylinder pose
-    # cylinder, cylinder_pose = get_cylinder_pose(cylinder1, cylinder2)
-    # if cylinder_pose is None:
-    #     print(f"Both cylinders were not detected. Skipping cylinder approach.")
-    # else:
-    #     print(f"Approaching {cylinder} cylinder with position: [{cylinder_pose.position.x:.3f}, {cylinder_pose.position.y:.3f}]")
-    #     # Approach the cylinder
-    #     approach_cylinder(cylinder_pose)
-    '''
+    cylinder, cylinder_pose = get_cylinder_pose(cylinder1, cylinder2)
+    if cylinder_pose is None:
+        print(f"Both cylinders were not detected. Skipping cylinder approach.")
+    else:
+        print(f"Approaching {cylinder} cylinder with position: [{cylinder_pose.position.x:.3f}, {cylinder_pose.position.y:.3f}]")
+        # Approach the cylinder
+        approach_cylinder(cylinder_pose)
 
     # Get a ring pose
-    # ring = "blue"
     ring_pose = get_ring_pose(ring)
     if ring_pose is None:
         print('\033[93m' + f"{ring[0].upper() + ring[1:]} ring was not detected. Skipping precise parking." + '\033[0m')
