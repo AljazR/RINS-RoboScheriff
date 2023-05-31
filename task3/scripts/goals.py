@@ -17,7 +17,7 @@ global sound_client
 global arm_command_pub
 new_face = False
 
-def precise_parking(pose: Pose):
+def approach_pose(pose: Pose, treshold):
     # Create a SimpleActionClient
     client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
     client.wait_for_server()
@@ -29,14 +29,15 @@ def precise_parking(pose: Pose):
     width = cost_map.info.width
 
     # Check if pose is valid
-    if cost_map.data[int((pose.position.x - origin.x) / resolution) + int((pose.position.y - origin.y) / resolution) * width] < 0.4:
-        print("Pose is invalid.")
+    occupancy_value = cost_map.data[int((pose.position.x - origin.x) / resolution) + int((pose.position.y - origin.y) / resolution) * width]
+    if occupancy_value > treshold or occupancy_value == -1:
         # Find closest valid pose
         new_x = 0
         new_y = 0
         closest_distance = 1000
         for i in range(len(cost_map.data)):
-            if cost_map.data[i] < 0.4:
+            occupancy_value = cost_map.data[i]
+            if occupancy_value < treshold and occupancy_value != -1:
                 temp_x = origin.x + (i % width) * resolution
                 temp_y = origin.y + (i // width) * resolution
                 distance = math.sqrt((pose.position.x - temp_x)**2 + (pose.position.y - temp_y)**2)
@@ -48,10 +49,8 @@ def precise_parking(pose: Pose):
         pose.position.x = new_x
         pose.position.y = new_y
         print(f"New pose: [{new_x:.3f}, {new_y:.3f}]")
-    else:
-        print("Pose is valid.")
     
-    # Go to the pose under the ring
+    # Go to the pose
     goal = MoveBaseGoal()
     goal.target_pose.header.frame_id = "map"
     goal.target_pose.pose.position.x = pose.position.x
@@ -60,6 +59,52 @@ def precise_parking(pose: Pose):
     goal.target_pose.pose.orientation.z = 1
     client.send_goal(goal)
     client.wait_for_result()
+
+    return client.get_state() == actionlib.GoalStatus.SUCCEEDED
+
+def fix_orientation(pose: Pose):
+    # Create a SimpleActionClient
+    client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+    client.wait_for_server()
+
+    # Location of the robot
+    robot_location = rospy.wait_for_message('/amcl_pose', PoseWithCovarianceStamped)
+    robot_position = robot_location.pose.pose.position
+
+    # Find orientation of the robot
+    new_x = [pose.position.x + 0.05, pose.position.x - 0.05, pose.position.x, pose.position.x]
+    new_y = [pose.position.y, pose.position.y, pose.position.y + 0.05, pose.position.y - 0.05]
+    new_w = [0, 1, 0.7, 0.7]
+    new_z = [1, 0, -0.7, 0.7]
+    w = z = None
+    min_dist = 1000
+    for i in range(4):
+        dist = math.sqrt((new_x[i] - robot_position.x)**2 + (new_y[i] - robot_position.y)**2)
+        if dist < min_dist:
+            min_dist = dist
+            w = new_w[i]
+            z = new_z[i]
+
+    if w is not None:
+        goal = MoveBaseGoal()
+        goal.target_pose.header.frame_id = "map"
+        goal.target_pose.pose.position.x = robot_position.x
+        goal.target_pose.pose.position.y = robot_position.y
+        goal.target_pose.pose.orientation.z = z
+        goal.target_pose.pose.orientation.w = w
+        client.send_goal(goal)
+        client.wait_for_result()
+        return client.get_state() == actionlib.GoalStatus.SUCCEEDED
+    else:
+        return False
+
+def precise_parking(pose: Pose):
+    # Approach the ring
+    approach_pose(pose, 90)
+
+    # Create a SimpleActionClient
+    client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+    client.wait_for_server()    
 
     # Extend the arm when the pose is reached
     global arm_command_pub
@@ -73,12 +118,14 @@ def precise_parking(pose: Pose):
     w = [ 0.7, 1, 0.7]
     z = [-0.7, 0, 0.7]
     for i in range(3):
+        goal = MoveBaseGoal()
+        goal.target_pose.header.frame_id = "map"
         goal.target_pose.pose.position.x = robot_location.pose.pose.position.x
         goal.target_pose.pose.position.y = robot_location.pose.pose.position.y
         goal.target_pose.pose.orientation.z = z[i]
         goal.target_pose.pose.orientation.w = w[i]
         client.send_goal(goal)
-        client.wait_for_result()        
+        client.wait_for_result()      
 
     # TODO: find the ring on the floor and park in it
     # pose = rospy.wait_for_message('/arm_ring_pose', Pose)
@@ -90,65 +137,27 @@ def precise_parking(pose: Pose):
     # client.wait_for_result()
 
 def approach_cylinder(pose: Pose):
-
-    # TODO
-
-    global sound_client
-    sound_client.say("I'm taking you to the prison.")
-    rospy.sleep(3)
+    # Approach the cylinder
+    if approach_pose(pose, 50):
+        # Fix orientation so that the robot is facing the cylinder
+        fix_orientation(pose)
+        # Say "I'm taking you to the prison."
+        global sound_client
+        sound_client.say("I'm taking you to the prison.")
+        rospy.sleep(3)
 
 def approach_face(marker_array: MarkerArray):
-    # if the new marker is black, then it is not a face but a wanted poster
+    # if the new marker is red, then it is not a face but a wanted poster
     if marker_array.markers[-1].color.r == 1:
         return
 
     global new_face
     new_face = True
     
-    # Location of the face
-    face_position = marker_array.markers[-1].pose.position
-    face_orientation = marker_array.markers[-1].pose.orientation
-
-    # Location of the robot
-    robot_location = rospy.wait_for_message('/amcl_pose', PoseWithCovarianceStamped)
-    robot_position = robot_location.pose.pose.position
-    robot_orientation = robot_location.pose.pose.orientation
-
-    # Find closest point facing the face
-    new_x = [face_position.x + 0.5, face_position.x - 0.5, face_position.x, face_position.x]
-    new_y = [face_position.y, face_position.y, face_position.y + 0.5, face_position.y - 0.5]
-    new_w = [0, 1, 0.7, 0.7]
-    new_z = [1, 0, -0.7, 0.7]
-    x = y = w = z = None
-    min_dist = 1000
-    for i in range(4):
-        dist = math.sqrt((new_x[i] - robot_position.x)**2 + (new_y[i] - robot_position.y)**2)
-        if dist < min_dist:
-            min_dist = dist
-            x = new_x[i]
-            y = new_y[i]
-            w = new_w[i]
-            z = new_z[i]
-
-    if x is not None:
-        print(f"Approaching face: [{x:.3f}, {y:.3f}].")
-
-        # Send the robot to the face
-        client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
-        client.wait_for_server()
-
-        goal = MoveBaseGoal()
-        goal.target_pose.header.frame_id = "map"
-        goal.target_pose.pose.position.x = x
-        goal.target_pose.pose.position.y = y
-        goal.target_pose.pose.orientation.z = z
-        goal.target_pose.pose.orientation.w = w
-
-        client.send_goal(goal)
-        client.wait_for_result()
-
-        # When face is approached, open the dialogue box
-        if client.get_state() == actionlib.GoalStatus.SUCCEEDED:
+    face_pose = marker_array.markers[-1].pose
+    # Approach the face and open the dialogue box
+    if approach_pose(face_pose, 90):
+        if fix_orientation(face_pose):
             # Wait for the service to become available
             rospy.wait_for_service('dialogue_box')
             try:
@@ -169,7 +178,7 @@ def approach_face(marker_array: MarkerArray):
         else:
             print(f"Failed to approach face.")
 
-    new_face = False
+        new_face = False
 
 def move_to_goals():
     # Create a SimpleActionClient for the move_base action
@@ -179,10 +188,20 @@ def move_to_goals():
     rospy.Subscriber('face_markers', MarkerArray, approach_face)
 
     # Goal coordinates
-    x_position =    [-0.64, -1.27, -0.07,  0.15,  0.14,  0.89,  1.92,  2.20,  3.65,  2.00,  1.11,  1.57,  2.58,  2.58,  1.82,  0.95, -0.03, -0.83]
-    y_position =    [ 0.95,  0.05, -0.33, -0.78, -1.33, -1.39, -1.11, -0.81, -0.80,  0.67,  1.45,  0.35,  1.10,  2.06,  2.51,  2.55,  2.67,  1.69]
-    z_orientation = [-0.98,  0.86, -0.02, -0.99, -0.46,  0.54, -0.58, -0.66,  1.00,  0.77,  0.15, -0.99,  0.93,  0.16, -0.73,  0.70, -0.60, -0.24]
-    w_orientation = [ 0.21,  0.51,  0.99,  0.08,  0.89,  0.84,  0.81,  0.75,  0.00,  0.63,  0.99,  0.13,  0.37,  0.99,  0.68,  0.71,  0.80,  0.99]
+    # x_position =    [-0.64, -1.27, -0.07,  0.15,  0.14,  0.89,  1.92,  2.20,  3.65,  2.00,  1.11,  1.15,  2.58,  2.58,  1.82,  0.95, -0.03, -0.83]
+    # y_position =    [ 0.95,  0.05, -0.33, -0.78, -1.33, -1.39, -1.11, -0.81, -0.80,  0.67,  1.45,  0.15,  1.10,  2.06,  2.51,  2.55,  2.67,  1.69]
+    # z_orientation = [-0.98,  0.86, -0.02, -0.99, -0.46,  0.54, -0.58, -0.66,  1.00,  0.77,  0.15, -0.70,  0.93,  0.16, -0.73,  0.70, -0.60, -0.24]
+    # w_orientation = [ 0.21,  0.51,  0.99,  0.08,  0.89,  0.84,  0.81,  0.75,  0.00,  0.63,  0.99,  0.70,  0.37,  0.99,  0.68,  0.71,  0.80,  0.99]
+    
+    x_position =    [-0.64, -1.27, -0.07,  0.15,  0.14,  0.89,  1.92,  2.20,  3.65,  1.37,  1.15,  2.58,  2.58,  1.82,  0.95, -0.03, -0.83]
+    y_position =    [ 0.95,  0.05, -0.33, -0.78, -1.33, -1.39, -1.11, -0.81, -0.80,  0.86,  0.15,  1.10,  2.06,  2.51,  2.55,  2.67,  1.69]
+    z_orientation = [-0.98,  0.86, -0.02, -0.99, -0.46,  0.54, -0.58, -0.66,  1.00,  1.00, -0.70,  0.93,  0.16, -0.73,  0.70, -0.60, -0.24]
+    w_orientation = [ 0.21,  0.51,  0.99,  0.08,  0.89,  0.84,  0.81,  0.75,  0.00,  0.00,  0.70,  0.37,  0.99,  0.68,  0.71,  0.80,  0.99]
+
+    # x_position =    [ -1.0, -1.0,  0.1,  2.2,  3.6,  2.6,  1.3,  1.2,  1.7, -0.6]
+    # y_position =    [  1.7,  0.0, -1.2, -1.1, -0.8,  1.1,  0.9,  0.0,  2.5,  1.7]
+    # z_orientation = [  1.0,  1.0,  1.0, -0.7,  0.7,  0.0,  1.0, -0.7,  0.1,  0.9]
+    # w_orientation = [  0.0,  0.2,  0.0,  0.7,  0.7,  1.0,  0.0,  0.7,  1.0, -0.4] 
 
     i = 0
     while i < len(x_position):
@@ -279,6 +298,9 @@ def main():
 
     # Get the ring and cylinders colors
     cylinder1, cylinder2, ring = get_colors()
+    # cylinder1 = "green"
+    # cylinder2 = "blue"
+    # ring = "red"
     if ring is None or cylinder1 is None or cylinder2 is None:
         print('\033[93m' + f"Not the right face detected. No info about the colors." + '\033[0m')
         return
